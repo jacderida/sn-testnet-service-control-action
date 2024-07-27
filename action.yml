@@ -1,0 +1,88 @@
+name: Network Service Control
+description: Use testnet-deploy to control services on a network
+inputs:
+  ansible-forks:
+    description: >
+      The number of forks to use with Ansible. A network should be upgraded gradually, so this
+      should be small. The default used by testnet-deploy is 2.
+  ansible-vault-password:
+    description: Password for Ansible vault
+    required: true
+  do-token:
+    description: Digital Ocean Authorization token
+    required: true
+  ssh-secret-key:
+    description: SSH key that Ansible will use to connect to the node VMs.
+    required: true
+  testnet-name:
+    description: SSH key that Ansible will use to connect to the node VMs.
+    required: true
+  testnet-deploy-branch:
+    description: >
+      The branch for the sn-testnet-deploy repository. Enables using forks to test changes for
+      testnet-deploy.
+    default: main
+  testnet-deploy-user:
+    description: >
+      The user or organisation for the sn-testnet-deploy repository. Enables using forks to test
+      changes for testnet-deploy.
+    default: maidsafe
+
+runs:
+  using: composite
+  steps:
+    - name: install tools
+      shell: bash
+      run: |
+        sudo apt-get update -y
+        # There is some issue with the latest version of Ansible not correctly
+        # reading the Digital Ocean token from environment variables, so just
+        # pin to this version for now.
+        pip install --user ansible==8.2.0
+        pip install --user boto3
+        sudo apt-get install jq -y
+    - name: clone testnet-deploy and set it up for use
+      shell: bash
+      env:
+        DO_PAT: ${{ inputs.do-token }}
+        TESTNET_DEPLOY_BRANCH: ${{ inputs.testnet-deploy-branch }}
+        TESTNET_DEPLOY_USER: ${{ inputs.testnet-deploy-user }}
+      run: |
+        set -e
+
+        git clone --quiet --single-branch --depth 1 \
+          --branch $TESTNET_DEPLOY_BRANCH https://github.com/$TESTNET_DEPLOY_USER/sn-testnet-deploy
+
+        mkdir ~/.ssh
+        echo "${{ inputs.ssh-secret-key }}" >> ~/.ssh/id_rsa
+        chmod 0400 ~/.ssh/id_rsa
+        ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
+
+        mkdir ~/.ansible
+        echo "${{ inputs.ansible-vault-password }}" >> ~/.ansible/vault-password
+
+        cd sn-testnet-deploy
+        echo "ANSIBLE_VAULT_PASSWORD_PATH=/home/runner/.ansible/vault-password" >> .env
+        echo "AWS_ACCESS_KEY_ID=${{ env.AWS_ACCESS_KEY_ID }}" >> .env
+        echo "AWS_DEFAULT_REGION=${{ env.AWS_DEFAULT_REGION }}" >> .env
+        echo "AWS_SECRET_ACCESS_KEY=${{ env.AWS_SECRET_ACCESS_KEY }}" >> .env
+        echo "DO_PAT=${{ env.DO_PAT }}" >> .env
+        echo "SSH_KEY_PATH=/home/runner/.ssh/id_rsa" >> .env
+        echo "TERRAFORM_STATE_BUCKET_NAME=${{ env.TERRAFORM_STATE_BUCKET_NAME }}" >> .env
+
+    - name: get status
+      if: inputs.action == 'status'
+      env:
+        ANSIBLE_FORKS: ${{ inputs.ansible-forks }}
+        TESTNET_NAME: ${{ inputs.testnet-name }}
+      shell: bash
+      run: |
+        set -e
+
+        cd sn-testnet-deploy
+
+        command="cargo run -- status --name $TESTNET_NAME "
+        [[ -n $ANSIBLE_FORKS ]] && command="$command --forks $ANSIBLE_FORKS "
+
+        echo "Will run testnet-deploy with: $command"
+        eval $command
