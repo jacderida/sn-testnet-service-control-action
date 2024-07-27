@@ -1,20 +1,21 @@
 name: Network Service Control
 description: Use testnet-deploy to control services on a network
 inputs:
+  action:
+    description: The service control action. Valid values are "start" and "status".
+    required: true
   ansible-forks:
-    description: >
-      The number of forks to use with Ansible. A network should be upgraded gradually, so this
-      should be small. The default used by testnet-deploy is 2.
+    description: The number of forks, or parallel connections, to use with Ansible. Defaults to 50.
   ansible-vault-password:
     description: Password for Ansible vault
     required: true
   do-token:
     description: Digital Ocean Authorization token
     required: true
-  ssh-secret-key:
-    description: SSH key that Ansible will use to connect to the node VMs.
+  network-name:
+    description: The name of the network
     required: true
-  testnet-name:
+  ssh-secret-key:
     description: SSH key that Ansible will use to connect to the node VMs.
     required: true
   testnet-deploy-branch:
@@ -22,11 +23,13 @@ inputs:
       The branch for the sn-testnet-deploy repository. Enables using forks to test changes for
       testnet-deploy.
     default: main
+    required: true
   testnet-deploy-user:
     description: >
       The user or organisation for the sn-testnet-deploy repository. Enables using forks to test
       changes for testnet-deploy.
     default: maidsafe
+    required: true
 
 runs:
   using: composite
@@ -70,18 +73,35 @@ runs:
         echo "SSH_KEY_PATH=/home/runner/.ssh/id_rsa" >> .env
         echo "TERRAFORM_STATE_BUCKET_NAME=${{ env.TERRAFORM_STATE_BUCKET_NAME }}" >> .env
 
-    - name: get status
-      if: inputs.action == 'status'
+    - name: start
+      if: inputs.action == 'start'
       env:
         ANSIBLE_FORKS: ${{ inputs.ansible-forks }}
-        TESTNET_NAME: ${{ inputs.testnet-name }}
+        NETWORK_NAME: ${{ inputs.network-name }}
       shell: bash
       run: |
         set -e
 
         cd sn-testnet-deploy
 
-        command="cargo run -- status --name $TESTNET_NAME "
+        command="cargo run -- start --name $NETWORK_NAME "
+        [[ -n $ANSIBLE_FORKS ]] && command="$command --forks $ANSIBLE_FORKS "
+
+        echo "Will run testnet-deploy with: $command"
+        eval $command
+
+    - name: status
+      if: inputs.action == 'status'
+      env:
+        ANSIBLE_FORKS: ${{ inputs.ansible-forks }}
+        NETWORK_NAME: ${{ inputs.network-name }}
+      shell: bash
+      run: |
+        set -e
+
+        cd sn-testnet-deploy
+
+        command="cargo run -- status --name $NETWORK_NAME "
         [[ -n $ANSIBLE_FORKS ]] && command="$command --forks $ANSIBLE_FORKS "
 
         echo "Will run testnet-deploy with: $command"
