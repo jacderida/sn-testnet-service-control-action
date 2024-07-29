@@ -2,7 +2,7 @@ name: Network Service Control
 description: Use testnet-deploy to control services on a network
 inputs:
   action:
-    description: The service control action. Valid values are "start" and "status".
+    description: The service control action. Valid values are "start", "status", "stop-telegraf".
     required: true
   ansible-forks:
     description: The number of forks, or parallel connections, to use with Ansible. Defaults to 50.
@@ -102,6 +102,23 @@ runs:
         cd sn-testnet-deploy
 
         command="cargo run -- status --name $NETWORK_NAME "
+        [[ -n $ANSIBLE_FORKS ]] && command="$command --forks $ANSIBLE_FORKS "
+
+        echo "Will run testnet-deploy with: $command"
+        eval $command
+
+    - name: stop telegraf
+      if: inputs.action == 'stop-telegraf'
+      env:
+        ANSIBLE_FORKS: ${{ inputs.ansible-forks }}
+        NETWORK_NAME: ${{ inputs.network-name }}
+      shell: bash
+      run: |
+        set -e
+
+        cd sn-testnet-deploy
+
+        command="cargo run -- stop-telegraf --name $NETWORK_NAME "
         [[ -n $ANSIBLE_FORKS ]] && command="$command --forks $ANSIBLE_FORKS "
 
         echo "Will run testnet-deploy with: $command"
