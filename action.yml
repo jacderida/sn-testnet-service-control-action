@@ -9,6 +9,16 @@ inputs:
   ansible-vault-password:
     description: Password for Ansible vault
     required: true
+  aws-access-key-id:
+    description: AWS access key ID
+    required: true
+  aws-access-key-secret:
+    description: AWS access key
+    required: true
+  aws-region:
+    description: AWS region
+    default: eu-west-2
+    required: true
   do-token:
     description: Digital Ocean Authorization token
     required: true
@@ -47,6 +57,9 @@ runs:
     - name: clone testnet-deploy and set it up for use
       shell: bash
       env:
+        AWS_ACCESS_KEY_ID: ${{ inputs.aws-access-key-id }}
+        AWS_DEFAULT_REGION: ${{ inputs.aws-region }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.aws-access-key-secret }}
         DO_PAT: ${{ inputs.do-token }}
         TESTNET_DEPLOY_BRANCH: ${{ inputs.testnet-deploy-branch }}
         TESTNET_DEPLOY_USER: ${{ inputs.testnet-deploy-user }}
@@ -77,6 +90,7 @@ runs:
       if: inputs.action == 'start'
       env:
         ANSIBLE_FORKS: ${{ inputs.ansible-forks }}
+        AWS_DEFAULT_REGION: ${{ inputs.aws-region }}
         NETWORK_NAME: ${{ inputs.network-name }}
       shell: bash
       run: |
@@ -94,6 +108,7 @@ runs:
       if: inputs.action == 'status'
       env:
         ANSIBLE_FORKS: ${{ inputs.ansible-forks }}
+        AWS_DEFAULT_REGION: ${{ inputs.aws-region }}
         NETWORK_NAME: ${{ inputs.network-name }}
       shell: bash
       run: |
@@ -111,6 +126,7 @@ runs:
       if: inputs.action == 'stop-telegraf'
       env:
         ANSIBLE_FORKS: ${{ inputs.ansible-forks }}
+        AWS_DEFAULT_REGION: ${{ inputs.aws-region }}
         NETWORK_NAME: ${{ inputs.network-name }}
       shell: bash
       run: |
